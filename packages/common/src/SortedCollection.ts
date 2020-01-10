@@ -89,10 +89,9 @@ export namespace SortedCollection {
   export type StateRef = Opaque<number, 'SortedCollection.StateRef'>;
 }
 
-export class SortedCollection<Id, Item extends { id: Id }> {
-  private readonly map = new Map<Id, Item>();
-  private readonly compare: Compare<Item>;
-
+export class SortedCollection<Item extends { id: number }> {
+  private compare: Compare<Item>;
+  private map = Array<Maybe<Item>>();
   private list = Array<Item>();
   private changeRef = 0;
 
@@ -100,19 +99,35 @@ export class SortedCollection<Id, Item extends { id: Id }> {
     this.compare = compare;
   }
 
+  public setComparator(compare: Compare<Item>) {
+    this.compare = compare;
+    this.list = this.map.filter((item) => item != null) as Item[];
+    this.list.sort(compare);
+    this.changeRef += 1;
+  }
+
   public ref(): SortedCollection.StateRef {
     return this.changeRef as SortedCollection.StateRef;
   }
 
   public add(item: Item) {
-    this.map.set(item.id, item);
+    if (this.map.length <= item.id) {
+      // Grow map if item.id would be out of scope
+      this.map = this.map.concat(Array<Maybe<Item>>(Math.max(10, 1 + item.id - this.map.length)));
+    }
+
+    // Remove old item if overriding
+    this.remove(item.id);
+
+    this.map[item.id] = item;
+
     sortedInsert(item, this.list, this.compare);
 
     this.changeRef += 1;
   }
 
-  public remove(id: Id) {
-    const item = this.map.get(id);
+  public remove(id: number) {
+    const item = this.map[id];
 
     if (!item) {
       return;
@@ -120,21 +135,21 @@ export class SortedCollection<Id, Item extends { id: Id }> {
 
     const index = sortedIndexOf(item, this.list, this.compare);
     this.list.splice(index, 1);
-    this.map.delete(id);
+    this.map[id] = null;
 
     this.changeRef += 1;
   }
 
-  public get(id: Id): Maybe<Item> {
-    return this.map.get(id);
+  public get(id: number): Maybe<Item> {
+    return this.map[id];
   }
 
   public sorted(): Array<Item> {
     return this.list;
   }
 
-  public mut(id: Id, mutator: (item: Item) => void) {
-    const item = this.map.get(id);
+  public mut(id: number, mutator: (item: Item) => void) {
+    const item = this.map[id];
 
     if (!item) {
       return;
@@ -143,8 +158,8 @@ export class SortedCollection<Id, Item extends { id: Id }> {
     mutator(item);
   }
 
-  public mutAndSort(id: Id, mutator: (item: Item) => void) {
-    const item = this.map.get(id);
+  public mutAndSort(id: number, mutator: (item: Item) => void) {
+    const item = this.map[id];
 
     if (!item) {
       return;
@@ -163,6 +178,14 @@ export class SortedCollection<Id, Item extends { id: Id }> {
     }
   }
 
+  public mutAndMaybeSort(id: number, mutator: (item: Item) => void, sort: boolean) {
+    if (sort) {
+      this.mutAndSort(id, mutator);
+    } else {
+      this.mut(id, mutator);
+    }
+  }
+
   public mutEach(mutator: (item: Item) => void) {
     this.list.forEach(mutator);
   }
@@ -173,7 +196,7 @@ export class SortedCollection<Id, Item extends { id: Id }> {
   }
 
   public clear() {
-    this.map.clear();
+    this.map = [];
     this.list = [];
 
     this.changeRef += 1;

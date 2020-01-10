@@ -18,15 +18,16 @@ export default class Feed {
   private socket: WebSocket;
   private messages: Array<FeedMessage.Message> = [];
   private waitingForPong = false;
+  private sendFinality = false;
 
   constructor(socket: WebSocket) {
     this.id = nextId();
     this.socket = socket;
 
-    socket.on('message', (data) => this.handleCommand(data.toString()));
-    socket.on('error', () => this.disconnect());
-    socket.on('close', () => this.disconnect());
-    socket.on('pong', () => this.waitingForPong = false);
+    socket.on('message', this.handleCommand);
+    socket.on('error', this.disconnect);
+    socket.on('close', this.disconnect);
+    socket.on('pong', this.onPong);
   }
 
   public static feedVersion(): FeedMessage.Message {
@@ -64,6 +65,13 @@ export default class Feed {
     };
   }
 
+  public static staleNode(node: Node): FeedMessage.Message {
+    return {
+      action: Actions.StaleNode,
+      payload: node.id
+    }
+  }
+
   public static locatedNode(node: Node, location: Location): FeedMessage.Message {
     return {
       action: Actions.LocatedNode,
@@ -89,6 +97,49 @@ export default class Feed {
     return {
       action: Actions.NodeStats,
       payload: [node.id, node.nodeStats()]
+    };
+  }
+
+  public static afgFinalized(node: Node, finalizedNumber: Types.BlockNumber, finalizedHash: Types.BlockHash): FeedMessage.Message {
+    const addr = node.address != null ? node.address : "" as Types.Address;
+    return {
+      action: Actions.AfgFinalized,
+      payload: [addr, finalizedNumber, finalizedHash]
+    };
+  }
+
+  public static afgReceivedPrevote(
+    node: Node,
+    targetNumber: Types.BlockNumber,
+    targetHash: Types.BlockHash,
+    voter: Types.Address
+  ): FeedMessage.Message {
+    const addr = node.address != null ? node.address : "" as Types.Address;
+    return {
+      action: Actions.AfgReceivedPrevote,
+      payload: [addr, targetNumber, targetHash, voter]
+    };
+  }
+
+  public static afgReceivedPrecommit(
+    node: Node,
+    targetNumber: Types.BlockNumber,
+    targetHash: Types.BlockHash,
+    voter: Types.Address
+  ): FeedMessage.Message {
+    const addr = node.address != null ? node.address : "" as Types.Address;
+    return {
+      action: Actions.AfgReceivedPrecommit,
+      payload: [addr, targetNumber, targetHash, voter]
+    };
+  }
+
+  public static afgAuthoritySet(
+    authoritySetInfo: Types.AuthoritySetInfo,
+  ): FeedMessage.Message {
+    return {
+      action: Actions.AfgAuthoritySet,
+      payload: authoritySetInfo,
     };
   }
 
@@ -155,6 +206,14 @@ export default class Feed {
     }
   }
 
+  public sendConsensusMessage(message: FeedMessage.Message) {
+    if (!this.sendFinality) {
+      return;
+    }
+
+    this.sendMessage(message);
+  }
+
   public ping() {
     if (this.waitingForPong) {
       this.disconnect();
@@ -171,8 +230,8 @@ export default class Feed {
     this.socket.send(data, this.handleError);
   }
 
-  private handleCommand(cmd: string) {
-    const [tag, payload] = cmd.split(':', 2) as [string, Maybe<string>];
+  private handleCommand = (data: WebSocket.Data) => {
+    const [tag, payload] = data.toString().split(':', 2) as [string, Maybe<string>];
 
     if (!payload) {
       return;
@@ -186,6 +245,14 @@ export default class Feed {
         }
 
         this.events.emit('subscribe', payload as Types.ChainLabel);
+        break;
+
+      case 'send-finality':
+        this.sendFinality = true;
+        break;
+
+      case 'no-more-finality':
+        this.sendFinality = false;
         break;
 
       case 'ping':
@@ -205,10 +272,17 @@ export default class Feed {
     }
   }
 
-  private disconnect() {
-    this.socket.removeAllListeners();
+  private disconnect = () => {
+    this.socket.removeListener('message', this.handleCommand);
+    this.socket.removeListener('error', this.disconnect);
+    this.socket.removeListener('close', this.disconnect);
+    this.socket.removeListener('pong', this.onPong);
     this.socket.terminate();
 
     this.events.emit('disconnect');
+  }
+
+  private onPong = () => {
+    this.waitingForPong = false;
   }
 }

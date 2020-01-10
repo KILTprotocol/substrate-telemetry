@@ -3,13 +3,14 @@ import Node from './Node';
 import Feed from './Feed';
 import FeedSet from './FeedSet';
 import Block from './Block';
-import { Maybe, Types, FeedMessage, NumStats } from '@dotstats/common';
+import { Maybe, Types, NumStats } from '@dotstats/common';
 
 const BLOCK_TIME_HISTORY = 10;
 
 export default class Chain {
   private nodes = new Set<Node>();
   private feeds = new FeedSet();
+  private count = 0;
 
   public readonly events = new EventEmitter();
   public readonly label: Types.ChainLabel;
@@ -20,6 +21,8 @@ export default class Chain {
 
   private blockTimes = new NumStats<Types.Milliseconds>(BLOCK_TIME_HISTORY);
   private averageBlockTime: Maybe<Types.Milliseconds> = null;
+
+  public lastBroadcastedAuthoritySetInfo: Maybe<Types.AuthoritySetInfo> = null;
 
   constructor(label: Types.ChainLabel) {
     this.label = label;
@@ -36,9 +39,37 @@ export default class Chain {
     this.feeds.broadcast(Feed.addedNode(node));
 
     node.events.once('disconnect', () => this.removeNode(node));
+    node.events.once('stale', () => this.staleNode(node));
 
     node.events.on('block', () => this.updateBlock(node));
     node.events.on('finalized', () => this.updateFinalized(node));
+
+    node.events.on('afg-finalized', (finalizedNumber, finalizedHash) => this.feeds.each(
+      f => f.sendConsensusMessage(Feed.afgFinalized(node, finalizedNumber, finalizedHash))
+    ));
+    node.events.on('afg-received-prevote', (finalizedNumber, finalizedHash, voter) => this.feeds.each(
+      f => f.sendConsensusMessage(Feed.afgReceivedPrevote(node, finalizedNumber, finalizedHash, voter))
+    ));
+    node.events.on('afg-received-precommit', (finalizedNumber, finalizedHash, voter) => this.feeds.each(
+      f => f.sendConsensusMessage(Feed.afgReceivedPrecommit(node, finalizedNumber, finalizedHash, voter))
+    ));
+    node.events.on('authority-set-changed', (authorities, authoritySetId, blockNumber, blockHash) => {
+      let newSet;
+      if (this.lastBroadcastedAuthoritySetInfo == null) {
+        newSet = true;
+      } else {
+        const [lastBroadcastedAuthoritySetId] = this.lastBroadcastedAuthoritySetInfo;
+        newSet = authoritySetId !== lastBroadcastedAuthoritySetId;
+      }
+
+      if (node.isAuthority() && newSet) {
+        const addr = node.address != null ? node.address : "" as Types.Address;
+        const set = [authoritySetId, authorities, addr, blockNumber, blockHash] as Types.AuthoritySetInfo;
+        this.feeds.broadcast(Feed.afgAuthoritySet(set));
+        this.lastBroadcastedAuthoritySetInfo = set;
+      }
+    });
+
     node.events.on('stats', () => this.feeds.broadcast(Feed.stats(node)));
     node.events.on('hardware', () => this.feeds.broadcast(Feed.hardware(node)));
     node.events.on('location', (location) => this.feeds.broadcast(Feed.locatedNode(node, location)));
@@ -52,8 +83,17 @@ export default class Chain {
 
     this.nodes.delete(node);
     this.feeds.broadcast(Feed.removedNode(node));
-
     this.events.emit('disconnect', this.nodeCount);
+
+    if (this.height === node.best.number) {
+      this.downgradeBlock();
+    }
+  }
+
+  public staleNode(node: Node) {
+    node.isStale = true;
+
+    this.feeds.broadcast(Feed.staleNode(node));
 
     if (this.height === node.best.number) {
       this.downgradeBlock();
@@ -70,9 +110,17 @@ export default class Chain {
     feed.sendMessage(Feed.bestBlock(this.height, this.blockTimestamp, this.averageBlockTime));
     feed.sendMessage(Feed.bestFinalizedBlock(this.finalized));
 
+    if (this.lastBroadcastedAuthoritySetInfo != null) {
+      feed.sendMessage(Feed.afgAuthoritySet(this.lastBroadcastedAuthoritySetInfo));
+    }
+
     for (const node of this.nodes.values()) {
       feed.sendMessage(Feed.addedNode(node));
       feed.sendMessage(Feed.finalized(node));
+
+      if (node.isStale) {
+        feed.sendMessage(Feed.staleNode(node));
+      }
     }
   }
 
@@ -119,6 +167,10 @@ export default class Chain {
       node.propagationTime = (node.blockTimestamp - this.blockTimestamp) as Types.PropagationTime;
     }
 
+    if (node.isStale) {
+      node.isStale = false;
+    }
+
     this.feeds.broadcast(Feed.imported(node));
 
     console.log(`[${this.label}] ${node.name} imported ${height}, block time: ${node.blockTime / 1000}s, average: ${node.average / 1000}s | latency ${node.latency}`);
@@ -129,6 +181,10 @@ export default class Chain {
     let finalized = Block.ZERO;
 
     for (const node of this.nodes) {
+      if (node.isStale) {
+        continue;
+      }
+
       if (this.height === node.best.number) {
         return;
       }

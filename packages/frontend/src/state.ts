@@ -1,8 +1,11 @@
 import { Types, Maybe, SortedCollection } from '@dotstats/common';
+import { Column } from './components/List';
+
+export const PINNED_CHAIN = 'Kusama CC3';
 
 export class Node {
   public static compare(a: Node, b: Node): number {
-    if (a.pinned === b.pinned) {
+    if (a.pinned === b.pinned && a.stale === b.stale) {
       if (a.height === b.height) {
         const aPropagation = a.propagationTime == null ? Infinity : a.propagationTime as number;
         const bPropagation = b.propagationTime == null ? Infinity : b.propagationTime as number;
@@ -11,7 +14,10 @@ export class Node {
         return aPropagation - bPropagation;
       }
     } else {
-      return +b.pinned - +a.pinned;
+      const bSort = (b.pinned ? -2 : 0) + +b.stale;
+      const aSort = (a.pinned ? -2 : 0) + +a.stale;
+
+      return aSort - bSort;
     }
 
     // Descending sort by block number
@@ -24,7 +30,12 @@ export class Node {
   public readonly version: Types.NodeVersion;
   public readonly validator: Maybe<Types.Address>;
   public readonly networkId: Maybe<Types.NetworkId>;
+  public readonly connectedAt: Types.Timestamp;
 
+  public readonly sortableName: string;
+  public readonly sortableVersion: number;
+
+  public stale: boolean;
   public pinned: boolean;
   public peers: Types.PeerCount;
   public txs: Types.TransactionCount;
@@ -47,7 +58,8 @@ export class Node {
   public lon: Maybe<Types.Longitude>;
   public city: Maybe<Types.City>;
 
-  private readonly subscribtions = new Set<(node: Node) => void>();
+  private readonly subscriptions = new Set<(node: Node) => void>();
+  private readonly subscriptionsConsensus = new Set<(node: Node) => void>();
 
   constructor(
     pinned: boolean,
@@ -56,7 +68,8 @@ export class Node {
     nodeStats: Types.NodeStats,
     nodeHardware: Types.NodeHardware,
     blockDetails: Types.BlockDetails,
-    location: Maybe<Types.NodeLocation>
+    location: Maybe<Types.NodeLocation>,
+    connectedAt: Types.Timestamp,
   ) {
     const [name, implementation, version, validator, networkId] = nodeDetails;
 
@@ -68,6 +81,12 @@ export class Node {
     this.version = version;
     this.validator = validator;
     this.networkId = networkId;
+    this.connectedAt = connectedAt;
+
+    const [major = 0, minor = 0, patch = 0] = (version || '0.0.0').split('.').map((n) => parseInt(n, 10) | 0);
+
+    this.sortableName = name.toLocaleLowerCase();
+    this.sortableVersion = (major * 1000 + minor * 100 + patch) | 0;
 
     this.updateStats(nodeStats);
     this.updateHardware(nodeHardware);
@@ -107,6 +126,7 @@ export class Node {
     this.blockTime = blockTime;
     this.blockTimestamp = blockTimestamp;
     this.propagationTime = propagationTime;
+    this.stale = false;
 
     this.trigger();
   }
@@ -140,16 +160,31 @@ export class Node {
     }
   }
 
+  public setStale(stale: boolean) {
+    if (this.stale !== stale) {
+      this.stale = stale;
+      this.trigger();
+    }
+  }
+
   public subscribe(handler: (node: Node) => void) {
-    this.subscribtions.add(handler);
+    this.subscriptions.add(handler);
   }
 
   public unsubscribe(handler: (node: Node) => void) {
-    this.subscribtions.delete(handler);
+    this.subscriptions.delete(handler);
+  }
+
+  public subscribeConsensus(handler: (node: Node) => void) {
+    this.subscriptionsConsensus.add(handler);
+  }
+
+  public unsubscribeConsensus(handler: (node: Node) => void) {
+    this.subscriptionsConsensus.delete(handler);
   }
 
   private trigger() {
-    for (const handler of this.subscribtions.values()) {
+    for (const handler of this.subscriptions.values()) {
       handler(this);
     }
   }
@@ -174,7 +209,13 @@ export namespace State {
     blocktime: boolean;
     blockpropagation: boolean;
     blocklasttime: boolean;
+    uptime: boolean;
     networkstate: boolean;
+  }
+
+  export interface SortBy {
+    column: string;
+    reverse: boolean;
   }
 }
 
@@ -182,15 +223,28 @@ export interface State {
   status: 'online' | 'offline' | 'upgrade-requested';
   best: Types.BlockNumber;
   finalized: Types.BlockNumber;
+  consensusInfo: Types.ConsensusInfo;
+  displayConsensusLoadingScreen: boolean;
+  tab: string;
+  authorities: Types.Address[];
+  authoritySetId: Maybe<Types.AuthoritySetId>;
+  sendFinality: boolean;
   blockTimestamp: Types.Timestamp;
   blockAverage: Maybe<Types.Milliseconds>;
   timeDiff: Types.Milliseconds;
   subscribed: Maybe<Types.ChainLabel>;
-  chains: Map<Types.ChainLabel, Types.NodeCount>;
-  nodes: SortedCollection<Types.NodeId, Node>;
+  chains: Map<Types.ChainLabel, ChainData>;
+  nodes: SortedCollection<Node>;
   settings: Readonly<State.Settings>;
   pins: Readonly<Set<Types.NodeName>>;
+  sortBy: Readonly<Maybe<number>>;
+  selectedColumns: Column[];
 }
 
 export type Update = <K extends keyof State>(changes: Pick<State, K> | null) => Readonly<State>;
+export type UpdateBound = <K extends keyof State>(changes: Pick<State, K> | null) => void;
 
+export interface ChainData {
+  label: Types.ChainLabel;
+  nodeCount: Types.NodeCount;
+}

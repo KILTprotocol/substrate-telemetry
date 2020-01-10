@@ -46,6 +46,7 @@ export default class Aggregator {
         feed.sendMessage(Feed.unsubscribedFrom(label));
       }
     });
+
   }
 
   public getExistingChain(label: Types.ChainLabel) : Maybe<Chain> {
