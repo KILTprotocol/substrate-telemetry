@@ -1,0 +1,21 @@
+FROM node:10-alpine
+WORKDIR /app
+
+RUN apk update && apk add --no-cache python g++ make openssh git bash curl openssl-dev
+RUN export PYTHONPATH=${PYTHONPATH}:/usr/lib/python2.7
+
+# install rustup
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+ENV PATH /root/.cargo/bin:$PATH
+RUN rustup update
+
+COPY . .
+
+RUN RUSTFLAGS="-C target-feature=-crt-static" cargo build --release
+
+EXPOSE 8000
+
+CMD ./target/release/telemetry
+# Frontend is exposing 3000
+# Backend is exposing 8080
+# No need for expose, if using docker-compose & docker run -p 3000:3000

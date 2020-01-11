@@ -12,6 +12,7 @@
     "deploy": "scripts/deploy.sh",
     "build:all": "scripts/build-all.sh",
     "start:frontend": "scripts/start-frontend.sh",
+    "start:frontend-dev": "export REACT_APP_WS_URL=ws://localhost:8000/feed/ && scripts/start-frontend.sh",
     "build:frontend": "scripts/build-frontend.sh",
     "build:common": "tsc -p packages/common",
     "check:common": "tsc -p packages/common --noEmit",

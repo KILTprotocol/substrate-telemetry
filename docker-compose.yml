@@ -14,12 +14,12 @@ services:
       - 3000:3000
   telemetry-backend:
     build:
-      dockerfile: Dockerfile
-      context: ./
-    command: yarn start:backend
+      dockerfile: Dockerfile-backend
+      context: ./backend
+    command: ./target/release/telemetry
     environment:
       - TELEMETRY_SERVER=1024
-      - FEED_SERVER=8080
+      - FEED_SERVER=8000
     ports:
-      - 8080:8080
+      - 8000:8000
       - 1024:1024
