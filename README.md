@@ -25,7 +25,7 @@ yarn start:frontend
 Follow up installation instructions from the [Polkadot repo](https://github.com/paritytech/polkadot)
 
 ```
-./target/release/polkadot --dev --telemetry-url ws://localhost:8000/submit
+./target/release/polkadot --dev --telemetry-url ws://localhost:8080/submit
 ```
 
 ### Run via Docker
@@ -46,4 +46,4 @@ Now navigate to localhost:3000 in your browser to view the app.
 When backend and frontend are running in different environments, you can inject the web socket endpoint url into the frontend by exporting the environment variable `REACT_APP_WS_URL`:
 
 ```
-export REACT_APP_WS_URL=ws://my-host:8080 && yarn start:frontend
+export REACT_APP_WS_URL=ws://my-host:8080/feed && yarn start:frontend
