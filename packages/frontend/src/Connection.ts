@@ -44,7 +44,7 @@ export class Connection {
   private static getDefaultWsAddress() : string {
     return window.location.protocol === 'https:' ? 
       `wss://${window.location.hostname}/feed/` : 
-      `ws://${window.location.hostname}:8000/feed/`
+      `ws://${window.location.hostname}:8080/feed/`
   }
 
   private static async trySocket(): Promise<Maybe<WebSocket>> {

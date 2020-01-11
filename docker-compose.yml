@@ -19,7 +19,7 @@ services:
     command: ./target/release/telemetry
     environment:
       - TELEMETRY_SERVER=1024
-      - FEED_SERVER=8000
+      - FEED_SERVER=8080
     ports:
-      - 8000:8000
+      - 8080:8080
       - 1024:1024

@@ -98,7 +98,7 @@ fn main() -> std::io::Result<()> {
             .service(resource("/network_state/{chain}/{nid}").route(get().to_async(state_route)))
             .service(resource("/network_state/{chain}/{nid}/").route(get().to_async(state_route)))
     })
-    .bind("0.0.0.0:8000")?
+    .bind("0.0.0.0:8080")?
     .start();
 
     sys.run()
