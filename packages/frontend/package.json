@@ -19,6 +19,7 @@
     "testRegex": "/test/.*\\.(spec).(ts|tsx|js)$"
   },
   "dependencies": {
+    "@dotstats/common": "0.1.0",
     "@fnando/sparkline": "maciejhirsz/sparkline",
     "@types/react-measure": "^2.0.5",
     "@polkadot/util-crypto": "^1.6.1",
