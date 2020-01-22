@@ -2,16 +2,21 @@ FROM node:10-alpine
 
 WORKDIR /app
 
-RUN apk add --no-cache python make g++
+RUN apk update && apk add --no-cache python g++ make openssh git bash curl openssl-dev
+RUN export PYTHONPATH=${PYTHONPATH}:/usr/lib/python2.7
+
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+ENV PATH /root/.cargo/bin:$PATH
+RUN rustup update
 
 COPY ./scripts ./scripts
-COPY ./backend ./backend
 COPY ./packages ./packages
+COPY ./backend ./backend
 COPY ./package.json ./yarn.lock ./tsconfig.json ./
+
+RUN RUSTFLAGS="-C target-feature=-crt-static" cargo build --release --manifest-path=./backend/Cargo.toml
 
 RUN yarn 
 
+EXPOSE 3000 8080
 
-# Frontend is exposing 3000
-# Backend is exposing 8080
-# No need for expose, if using docker-compose & docker run -p 3000:3000
