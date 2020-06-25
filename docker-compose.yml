@@ -17,6 +17,6 @@ services:
       dockerfile: backend.Dockerfile
       context: ./
     environment:
-      - PORT=8000
+      - PORT=8080
     ports:
-      - 8000:8000
+      - 8080:8080

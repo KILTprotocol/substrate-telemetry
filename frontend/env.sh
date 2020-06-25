@@ -9,7 +9,7 @@ TARGET=./env-config.js
 echo -n > $TARGET
 
 declare -a vars=(
-  "SUBSTRATE_TELEMETRY_URL"
+  "REACT_APP_WS_URL"
   "SUBSTRATE_TELEMETRY_SAMPLE"
 )
 

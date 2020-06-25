@@ -33,8 +33,8 @@ struct Opts {
     #[clap(
         short = "l",
         long = "listen",
-        default_value = "127.0.0.1:8000",
-        help = "This is the socket address Telemetry is listening to. This is restricted localhost (127.0.0.1) by default and should be fine for most use cases. If you are using Telemetry in a container, you likely want to set this to '0.0.0.0:8000'"
+        default_value = "127.0.0.1:8080",
+        help = "This is the socket address Telemetry is listening to. This is restricted localhost (127.0.0.1) by default and should be fine for most use cases. If you are using Telemetry in a container, you likely want to set this to '0.0.0.0:8080'"
     )]
     socket: std::net::SocketAddr,
 }
@@ -106,7 +106,7 @@ fn health(
     })
 }
 
-/// Telemetry entry point. Listening by default on 127.0.0.1:8000.
+/// Telemetry entry point. Listening by default on 127.0.0.1:8080.
 /// This can be changed using the `PORT` and `BIND` ENV variables.
 fn main() -> std::io::Result<()> {
     use web::{get, resource};
