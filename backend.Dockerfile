@@ -9,6 +9,6 @@ FROM phusion/baseimage:0.11
 
 COPY --from=builder /build/target/release/telemetry /usr/local/bin
 
-EXPOSE 8000
+EXPOSE 8080
 
 ENTRYPOINT [ "telemetry" ]

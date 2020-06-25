@@ -480,7 +480,7 @@ const MEMORY_SCALE = 2 * 1024 * 1024;
 const URI_BASE =
   window.location.protocol === 'https:'
     ? `/network_state/`
-    : `http://${window.location.hostname}:8000/network_state/`;
+    : `http://${window.location.hostname}:8080/network_state/`;
 
 function formatStamp(stamp: Types.Timestamp): string {
   const passed = ((timestamp() - stamp) / 1000) | 0;
