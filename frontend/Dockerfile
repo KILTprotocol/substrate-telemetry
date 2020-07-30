@@ -16,7 +16,7 @@ FROM nginx:stable-alpine
 LABEL maintainer="Chevdor <chevdor@gmail.com>"
 LABEL description="Polkadot Telemetry frontend"
 
-ENV REACT_APP_WS_URL=
+ENV SUBSTRATE_TELEMETRY_URL=
 
 WORKDIR /usr/share/nginx/html
 

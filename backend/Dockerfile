@@ -21,6 +21,6 @@ WORKDIR /usr/local/bin
 
 COPY --from=builder /app/target/x86_64-unknown-linux-musl/$PROFILE/telemetry /usr/local/bin
 
-EXPOSE 8080
+EXPOSE 8000
 
 ENTRYPOINT ["telemetry"]
